@@ -80,3 +80,17 @@ export async function canSendMQTT(uid){
     return true;
 }
 
+export async function writtingHeaterState(uid, state){
+    try{
+        await db.doc("system/state").set({
+            heater: state,
+            updateAt:  admin.firestore.FieldValue.serverTimestamp(),
+            updatedBy: uid,
+        },{ merge: true});
+        console.log("Etat chauffage enregistré :", state);
+    }catch(err){
+        console.log(err);
+        throw new Error(err);
+    }
+}
+

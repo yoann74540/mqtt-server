@@ -1,7 +1,7 @@
 import express from "express";
 import mqtt from "mqtt";
 import cors from "cors";
-import {verifyFirebaseToken, canSendMQTT, MqttLimitError} from "./firebaseAdmin.js"
+import {writtingHeaterState, verifyFirebaseToken, canSendMQTT, MqttLimitError} from "./firebaseAdmin.js"
 
 const app = express();
 app.use(cors());
@@ -22,6 +22,7 @@ app.post("/heater", verifyFirebaseToken, async (req, res) => {
     console.log("command de", req.user.email, "->", state);
 
     try{
+        const message = state ? "ON": "OFF";
         if(typeof state !== "boolean"){
             return res.status(400).json({
                 error: "Invalid state",
@@ -39,7 +40,7 @@ app.post("/heater", verifyFirebaseToken, async (req, res) => {
         });
 
         client.on("connect", () => {
-            client.publish(topic, state ? "ON" : "OFF", {}, () => {
+            client.publish(topic, message, {}, () => {
                 setTimeout(() => client.end(), 300);
                 res.json({ success: true });
             });
@@ -49,6 +50,9 @@ app.post("/heater", verifyFirebaseToken, async (req, res) => {
             client.end();
             res.status(500).json({ error: err.message });
         });
+
+        await writtingHeaterState(req.user.uid, message);
+
     } catch(err){
         console.log(err.message);
         if( err instanceof MqttLimitError ){
