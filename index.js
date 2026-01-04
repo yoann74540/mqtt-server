@@ -1,7 +1,7 @@
 import express from "express";
 import mqtt from "mqtt";
 import cors from "cors";
-import {verifyFirebaseToken} from "./firebaseAdmin.js"
+import {verifyFirebaseToken, canSendMQTT, MqttLimitError} from "./firebaseAdmin.js"
 
 const app = express();
 app.use(cors());
@@ -21,31 +21,42 @@ app.post("/heater", verifyFirebaseToken, async (req, res) => {
 
     console.log("command de", req.user.email, "->", state);
 
-    if(typeof state !== "boolean"){
-        return res.status(400).json({
-            error: "Invalid state",
-            received: req.body
+    try{
+        if(typeof state !== "boolean"){
+            return res.status(400).json({
+                error: "Invalid state",
+                received: req.body
+            });
+        }
+
+        await canSendMQTT(req.user.uid);
+
+        const topic = `${AIO_USERNAME}/feeds/chauffage`;
+
+        const client = mqtt.connect("mqtts://io.adafruit.com", {
+            username: AIO_USERNAME,
+            password: AIO_KEY
         });
+
+        client.on("connect", () => {
+            client.publish(topic, state ? "ON" : "OFF", {}, () => {
+                setTimeout(() => client.end(), 300);
+                res.json({ success: true });
+            });
+        });
+
+        client.on("error", err => {
+            client.end();
+            res.status(500).json({ error: err.message });
+        });
+    } catch(err){
+        console.log(err.message);
+        if( err instanceof MqttLimitError ){
+            return res.status(429).json( { error: err.message } );
+        }else{
+            return res.status(500).json( {error: "Servor error"} );
+        }
     }
-
-    const topic = `${AIO_USERNAME}/feeds/chauffage`;
-
-    const client = mqtt.connect("mqtts://io.adafruit.com", {
-        username: AIO_USERNAME,
-        password: AIO_KEY
-    });
-
-    client.on("connect", () => {
-        client.publish(topic, state ? "ON" : "OFF", {}, () => {
-            setTimeout(() => client.end(), 300);
-            res.json({ success: true });
-        });
-    });
-
-    client.on("error", err => {
-        client.end();
-        res.status(500).json({ error: err.message });
-    });
 
 });
 
