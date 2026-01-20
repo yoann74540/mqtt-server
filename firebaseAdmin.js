@@ -104,23 +104,33 @@ export async function addhistoryEntry(userEmail, type, value){
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        const snapshot = await historyRef.orderBy("createdAt", "desc").get();
-        const entries = snapshot.docs;
+        const snapshot = await historyRef
+            .orderBy("createdAt", "desc")
+            .offset(10)
+            .limit(1)
+            .get();
 
-        if(entries.length > 10){
-            let keepTemp = null;
-            for(const doc of entries){
-                const data = doc.data();
-                if( data.type === "temperature"){
-                    keepTemp = doc.id;
-                    break
+        if(!snapshot.empty){
+            const docToDelete = snapshot.docs[0];
+            const data = docToDelete.data();
+
+            if( (data.type === "temperature") && (type !== "temperature") ){
+                const tenthSnapshot = await historyRef
+                    .orderBy("createdAt","desc")
+                    .offset(9)
+                    .limit(1)
+                    .get();
+
+                if(!tenthSnapshot.empty){
+                    const tenthDoc = tenthSnapshot.docs[0];
+                    if( tenthDoc.data().type !== "temperature" ){
+                        await historyRef.doc(tenthDoc.id).delete();
+                    }else{
+                        await historyRef.doc(docToDelete.id).delete();
+                    }
                 }
-            }
-            for(let i = entries.length -1; i >=10; i--){
-                const docId = snapshot.docs[i].id;
-                if(docId !== keepTemp){
-                    await historyRef.doc(docId).delete();
-                }       
+            }else{
+                await historyRef.doc(docToDelete.id).delete();
             }
         }
 
