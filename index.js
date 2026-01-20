@@ -1,7 +1,7 @@
 import express from "express";
 import mqtt from "mqtt";
 import cors from "cors";
-import {writtingHeaterState, verifyFirebaseToken, canSendMQTT, MqttLimitError} from "./firebaseAdmin.js"
+import {writtingHeaterState, verifyFirebaseToken, canSendMQTT, MqttLimitError, addhistoryEntry} from "./firebaseAdmin.js"
 
 const app = express();
 app.use(cors());
@@ -52,6 +52,8 @@ app.post("/heater", verifyFirebaseToken, async (req, res) => {
         });
 
         await writtingHeaterState(req.user.uid, message);
+
+        await addhistoryEntry(req.user.email, "heater", state);
 
     } catch(err){
         console.log(err.message);

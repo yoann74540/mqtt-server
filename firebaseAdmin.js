@@ -94,3 +94,39 @@ export async function writtingHeaterState(uid, state){
     }
 }
 
+export async function addhistoryEntry(userEmail, type, value){
+    const historyRef = db.collection("system").doc("global").collection("history");
+    try{
+        await historyRef.add({
+            userEmail: userEmail,
+            type: type,
+            value: value,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        const snapshot = await historyRef.orderBy("createdAt", "desc").get();
+        const entries = snapshot.docs;
+
+        if(entries.length > 10){
+            let keepTemp = null;
+            for(const doc of entries){
+                const data = doc.data();
+                if( data.type === "temperature"){
+                    keepTemp = doc.id;
+                    break
+                }
+            }
+            for(let i = entries.length -1; i >=10; i--){
+                const docId = snapshot.docs[i].id;
+                if(docId !== keepTemp){
+                    await historyRef.doc(docId).delete();
+                }       
+            }
+        }
+
+        console.log("Etat chauffage enregistré dans historique:", value);
+    }catch(err){
+        console.log(err);
+        throw new Error(err);
+    }
+}
